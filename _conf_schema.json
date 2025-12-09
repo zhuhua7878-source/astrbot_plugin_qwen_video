@@ -29,14 +29,14 @@
     },
     "num_inference_steps": {
         "description": "推理步数",
-        "type": "integer",
+        "type": "int",
         "hint": "控制生成质量，步数越多质量越好但耗时越长，建议30-50",
         "default": 50,
         "obvious_hint": false
     },
     "num_frames": {
         "description": "视频帧数",
-        "type": "integer",
+        "type": "int",
         "hint": "生成视频的总帧数，81帧约3-4秒，值越大视频越长",
         "default": 81,
         "obvious_hint": false
@@ -50,14 +50,14 @@
     },
     "timeout": {
         "description": "任务超时时间(秒)",
-        "type": "integer",
+        "type": "int",
         "hint": "视频生成任务的最长等待时间，超时将取消任务",
         "default": 1800,
         "obvious_hint": false
     },
     "retry_interval": {
         "description": "状态查询间隔(秒)",
-        "type": "integer",
+        "type": "int",
         "hint": "每隔多少秒查询一次任务状态",
         "default": 10,
         "obvious_hint": false
