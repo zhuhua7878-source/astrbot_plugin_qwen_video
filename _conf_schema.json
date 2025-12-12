@@ -29,14 +29,14 @@
     },
     "num_inference_steps": {
         "description": "推理步数",
-        "type": "integer",
+        "type": "int",
         "hint": "控制生成质量，步数越多质量越好但耗时越长，建议30-50",
         "default": 50,
         "obvious_hint": false
     },
     "num_frames": {
         "description": "视频帧数",
-        "type": "integer",
+        "type": "int",
         "hint": "生成视频的总帧数，81帧约3-4秒，值越大视频越长",
         "default": 81,
         "obvious_hint": false
@@ -56,3 +56,4 @@
         "obvious_hint": false
     }
 }
+
