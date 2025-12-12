@@ -1,9 +1,9 @@
 {
-    "api_url": {
-        "description": "API的请求地址",
+    "api_key": {
+        "description": "API密钥",
         "type": "string",
-        "hint": "千问视频生成服务的API接口地址",
-        "default": "https://ai.gitee.com/v1/async/videos/generations",
+        "hint": "请填写千问API服务提供的密钥，代码会自动添加'Bearer '前缀",
+        "default": "",
         "obvious_hint": false
     },
     "task_url": {
@@ -13,53 +13,39 @@
         "default": "https://ai.gitee.com/v1/task",
         "obvious_hint": false
     },
-    "api_key": {
-        "description": "API密钥",
-        "type": "string",
-        "hint": "请填写千问API服务提供的密钥，代码会自动添加'Bearer '前缀",
-        "default": "",
-        "obvious_hint": false
-    },
     "model": {
         "description": "视频生成模型名称",
         "type": "string",
-        "hint": "千问视频生成模型，推荐使用 Wan2.1-T2V-1.3B",
-        "default": "Wan2.1-T2V-1.3B",
+        "hint": "千问图生视频模型，推荐使用 Wan2.1-I2V-14B-720P",
+        "default": "Wan2.1-I2V-14B-720P",
         "obvious_hint": false
     },
     "num_inference_steps": {
         "description": "推理步数",
-        "type": "int",
+        "type": "integer",
         "hint": "控制生成质量，步数越多质量越好但耗时越长，建议30-50",
         "default": 50,
         "obvious_hint": false
     },
     "num_frames": {
         "description": "视频帧数",
-        "type": "int",
+        "type": "integer",
         "hint": "生成视频的总帧数，81帧约3-4秒，值越大视频越长",
         "default": 81,
         "obvious_hint": false
     },
-    "negative_prompt": {
-        "description": "负面提示词",
+    "aspect_ratio": {
+        "description": "图生视频宽高比",
         "type": "string",
-        "hint": "指导模型避免生成的内容，例如：模糊、低质量、变形等",
-        "default": "",
+        "hint": "视频的宽高比，可选值：9:16(竖版), 16:9(横版), 1:1(方形)",
+        "default": "16:9",
         "obvious_hint": false
     },
-    "timeout": {
-        "description": "任务超时时间(秒)",
-        "type": "int",
-        "hint": "视频生成任务的最长等待时间，超时将取消任务",
-        "default": 1800,
-        "obvious_hint": false
-    },
-    "retry_interval": {
-        "description": "状态查询间隔(秒)",
-        "type": "int",
-        "hint": "每隔多少秒查询一次任务状态",
-        "default": 10,
+    "orientation": {
+        "description": "图生视频方向",
+        "type": "string",
+        "hint": "视频方向，可选值：landscape(横屏), portrait(竖屏), square(方形)",
+        "default": "landscape",
         "obvious_hint": false
     }
 }
