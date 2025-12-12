@@ -6,6 +6,13 @@
         "default": "",
         "obvious_hint": false
     },
+    "image_to_video_url": {
+        "description": "图生视频API地址",
+        "type": "string",
+        "hint": "千问图生视频API接口地址，如果接口不支持请修改此地址",
+        "default": "https://ai.gitee.com/v1/async/videos/image-to-video",
+        "obvious_hint": false
+    },
     "task_url": {
         "description": "任务查询地址",
         "type": "string",
