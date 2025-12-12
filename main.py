@@ -25,7 +25,7 @@ class QwenVideoPlugin(Star):
         super().__init__(context)
         self.config = config
         self.api_key = config.get("api_key", "")
-        self.image_to_video_url = "https://ai.gitee.com/v1/async/videos/image-to-video"
+        self.image_to_video_url = config.get("image_to_video_url", "https://ai.gitee.com/v1/async/videos/image-to-video")
         self.task_url = config.get("task_url", "https://ai.gitee.com/v1/task")
         self.model = config.get("model", "Wan2.1-I2V-14B-720P")
         self.num_inference_steps = config.get("num_inference_steps", 50)
