@@ -1,8 +1,8 @@
-import base64
 import io
 import random
 import re
 import asyncio
+import mimetypes
 from pathlib import Path
 from typing import List, Optional
 
@@ -17,7 +17,7 @@ from astrbot.core.message.components import At, Image, Reply, Video
 @register(
     "astrbot_plugin_qwen_video",
     "CCYellowStar2",
-    "使用千问API生成视频。指令 文生视频 <提示词> 或 图生视频 <提示词> + 图片",
+    "使用千问API生成图生视频。指令：图生视频 <提示词> + 图片",
     "1.0.0"
 )
 class QwenVideoPlugin(Star):
@@ -25,14 +25,13 @@ class QwenVideoPlugin(Star):
         super().__init__(context)
         self.config = config
         self.api_key = config.get("api_key", "")
-        self.api_url = config.get("api_url", "https://ai.gitee.com/v1/async/videos/generations")
+        self.image_to_video_url = "https://ai.gitee.com/v1/async/videos/image-to-video"
         self.task_url = config.get("task_url", "https://ai.gitee.com/v1/task")
-        self.model = config.get("model", "Wan2.1-T2V-1.3B")
+        self.model = config.get("model", "Wan2.1-I2V-14B-720P")
         self.num_inference_steps = config.get("num_inference_steps", 50)
         self.num_frames = config.get("num_frames", 81)
-        self.negative_prompt = config.get("negative_prompt", "")
-        self.timeout = config.get("timeout", 1800)
-        self.retry_interval = config.get("retry_interval", 10)
+        self.aspect_ratio = config.get("aspect_ratio", "16:9")
+        self.orientation = config.get("orientation", "landscape")
         self.session: Optional[aiohttp.ClientSession] = None
         
     async def _ensure_session(self):
@@ -45,46 +44,17 @@ class QwenVideoPlugin(Star):
         if self.session and not self.session.closed:
             await self.session.close()
 
-    @filter.regex(r"^(文生视频)", priority=3)
-    async def handle_text_to_video(self, event: AstrMessageEvent):
-        """处理文生视频请求"""
-        user_prompt = re.sub(
-            r"^(文生视频)\s*", "", event.message_obj.message_str, count=1
-        ).strip()
-
-        if not self.api_key:
-            yield event.plain_result("错误：请先在配置文件中设置api_key")
-            return
-        
-        if not user_prompt:
-            yield event.plain_result("请输入视频生成的提示词。用法: 文生视频 <提示词>")
-            return
-
-        yield event.plain_result("收到文生视频请求，生成中请稍候...")
-        
-        payload = {
-            "prompt": user_prompt,
-            "model": self.model,
-            "num_inference_steps": self.num_inference_steps,
-            "num_frames": self.num_frames,
-        }
-        
-        if self.negative_prompt:
-            payload["negative_prompt"] = self.negative_prompt
-        
-        await self._generate_and_send_video(event, payload)
-
     @filter.regex(r"^(图生视频)", priority=3)
     async def handle_image_to_video(self, event: AstrMessageEvent):
         """处理图生视频请求"""
         user_prompt = re.sub(
             r"^(图生视频)\s*", "", event.message_obj.message_str, count=1
         ).strip()
-        
+
         if not self.api_key:
             yield event.plain_result("错误：请先在配置文件中设置api_key")
             return
-            
+
         image_list = await self.get_images(event)
         if not image_list:
             yield event.plain_result("请提供一张图片来生成视频。用法: 图生视频 <提示词> + 图片")
@@ -92,70 +62,64 @@ class QwenVideoPlugin(Star):
 
         if not user_prompt:
             user_prompt = "让画面动起来"
-        
-        yield event.plain_result(f"收到图生视频请求，共计 {len(image_list)} 张图片，生成中请稍候...")
-        
-        # 千问图生视频只支持单张图片，使用第一张
-        base64_image = base64.b64encode(image_list[0]).decode("utf-8")
-        
-        payload = {
-            "prompt": user_prompt,
-            "model": self.model,
-            "num_inference_steps": self.num_inference_steps,
-            "num_frames": self.num_frames,
-            "image": f"data:image/png;base64,{base64_image}"
-        }
-        
-        if self.negative_prompt:
-            payload["negative_prompt"] = self.negative_prompt
-        
-        await self._generate_and_send_video(event, payload)
 
-    async def _generate_and_send_video(self, event: AstrMessageEvent, payload: dict):
-        """生成并发送视频"""
+        # 千问图生视频只支持单张图片，使用第一张
+        image_data = image_list[0]
+
+        await self._generate_image_to_video(event, user_prompt, image_data)
+
+    async def _generate_image_to_video(self, event: AstrMessageEvent, prompt: str, image_data: bytes):
+        """使用 multipart 格式生成图生视频"""
         await self._ensure_session()
-        
+
         headers = {
             'Accept': 'application/json',
             'Authorization': f'Bearer {self.api_key}',
-            'Content-Type': 'application/json'
         }
-        
+
         try:
-            # 创建任务
-            logger.info("正在创建视频生成任务...")
-            async with self.session.post(self.api_url, headers=headers, json=payload) as response:
+            # 构建 multipart 请求数据
+            data = aiohttp.FormData()
+            data.add_field('prompt', prompt)
+            data.add_field('model', self.model)
+            data.add_field('num_inferenece_steps', str(self.num_inference_steps))
+            data.add_field('num_frames', str(self.num_frames))
+            data.add_field('aspect_ratio', self.aspect_ratio)
+            data.add_field('orientation', self.orientation)
+
+            # 添加图片文件
+            data.add_field('image', io.BytesIO(image_data), filename='image.png',
+                          content_type='image/png')
+
+            logger.info("正在创建图生视频任务...")
+            async with self.session.post(self.image_to_video_url, headers=headers, data=data) as response:
                 if response.status != 200:
                     error_text = await response.text()
                     error_msg = f"API请求失败，状态码: {response.status}, 响应: {error_text}"
                     logger.error(error_msg)
                     await self.context.send_message(
-                        event.unified_msg_origin, 
+                        event.unified_msg_origin,
                         MessageChain().message(error_msg)
                     )
                     return
-                
-                data = await response.json()
-                task_id = data.get("task_id")
-                
+
+                result = await response.json()
+                task_id = result.get("task_id")
+
                 if not task_id:
-                    error_msg = f"未能从API响应中获取task_id。响应内容: {data}"
+                    error_msg = f"未能从API响应中获取task_id。响应内容: {result}"
                     logger.error(error_msg)
                     await self.context.send_message(
-                        event.unified_msg_origin, 
+                        event.unified_msg_origin,
                         MessageChain().message(error_msg)
                     )
                     return
-                
-                logger.info(f"任务创建成功，Task ID: {task_id}")
-                await self.context.send_message(
-                    event.unified_msg_origin, 
-                    MessageChain().message(f"任务已创建 (ID: {task_id})，正在生成视频...")
-                )
-            
+
+                logger.info(f"图生视频任务创建成功，Task ID: {task_id}")
+
             # 轮询任务状态
             video_url = await self._poll_task(task_id, headers)
-            
+
             if video_url:
                 logger.info(f"成功获取视频链接: {video_url}，尝试发送...")
                 await event.send(event.chain_result([Video.fromURL(url=video_url)]))
@@ -164,46 +128,48 @@ class QwenVideoPlugin(Star):
                 error_msg = "视频生成失败或超时"
                 logger.error(error_msg)
                 await self.context.send_message(
-                    event.unified_msg_origin, 
+                    event.unified_msg_origin,
                     MessageChain().message(error_msg)
                 )
 
         except Exception as e:
-            logger.error(f"视频生成过程中发生严重错误: {e}", exc_info=True)
+            logger.error(f"图生视频过程中发生严重错误: {e}", exc_info=True)
             await self.context.send_message(
-                event.unified_msg_origin, 
+                event.unified_msg_origin,
                 MessageChain().message(f"生成失败: {str(e)}")
             )
 
     async def _poll_task(self, task_id: str, headers: dict) -> Optional[str]:
         """轮询任务状态直到完成或超时"""
         await self._ensure_session()
-        
+
         status_url = f"{self.task_url}/{task_id}"
-        max_attempts = int(self.timeout / self.retry_interval)
+        timeout = 30 * 60  # 30分钟超时
+        retry_interval = 10  # 10秒重试间隔
+        max_attempts = int(timeout / retry_interval)
         attempts = 0
-        
+
         while attempts < max_attempts:
             attempts += 1
             try:
                 logger.info(f"检查任务状态 [{attempts}/{max_attempts}]...")
-                
+
                 async with self.session.get(status_url, headers=headers, timeout=10) as response:
                     if response.status != 200:
                         logger.warning(f"状态查询失败，状态码: {response.status}")
-                        await asyncio.sleep(self.retry_interval)
+                        await asyncio.sleep(retry_interval)
                         continue
-                    
+
                     result = await response.json()
-                    
+
                     if result.get("error"):
                         error_msg = f"{result['error']}: {result.get('message', 'Unknown error')}"
                         logger.error(error_msg)
                         return None
-                    
+
                     status = result.get("status", "unknown")
                     logger.info(f"任务状态: {status}")
-                    
+
                     if status == "success":
                         if "output" in result and "file_url" in result["output"]:
                             file_url = result["output"]["file_url"]
@@ -213,20 +179,20 @@ class QwenVideoPlugin(Star):
                         else:
                             logger.error("任务成功但未找到视频URL")
                             return None
-                    
+
                     elif status in ["failed", "cancelled"]:
                         logger.error(f"任务{status}")
                         return None
-                    
+
                     # 任务仍在进行中
-                    await asyncio.sleep(self.retry_interval)
+                    await asyncio.sleep(retry_interval)
                     
             except asyncio.TimeoutError:
                 logger.warning("状态查询超时，重试...")
-                await asyncio.sleep(self.retry_interval)
+                await asyncio.sleep(retry_interval)
             except Exception as e:
                 logger.error(f"轮询任务状态时发生错误: {e}")
-                await asyncio.sleep(self.retry_interval)
+                await asyncio.sleep(retry_interval)
         
         logger.error(f"达到最大重试次数 ({max_attempts})")
         return None
